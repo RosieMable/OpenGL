@@ -1,13 +1,26 @@
 #include <stdio.h>
 #include <string.h>
+#include <cmath>
 
 #include <GL\glew.h>
 #include <GLFW\glfw3.h>
 
+#include<glm/glm.hpp>
+#include<glm/gtc/matrix_transform.hpp>
+#include<glm/gtc/type_ptr.hpp>
+
 //Window Dimensions
 const GLint WIDTH = 800, HEIGHT = 600;
 
-GLuint VAO, VBO, shader;
+GLuint VAO, VBO, shader, uniformModel; //uniformModel will allow us to translate the model coordinates to the world coordinates
+
+//Control the movement of the triangle
+bool direction = true;
+
+float triOffeset = 0.0f; //triangle will start at 0
+float triMaxOffset = 0.7f; 
+float triIncrement = 0.005f; //increment the position by this value
+
 
 // Vertex Shader
 static const char* vShader = "				\n\
@@ -15,9 +28,11 @@ static const char* vShader = "				\n\
 											\n\
 layout (location = 0) in vec3 pos;			\n\
 											\n\
+uniform float xMove;											\n\
+											\n\
 void main()									\n\
 {											\n\
-	gl_Position = vec4(pos.x, pos.y, pos.z, 1.0);			\n\
+	gl_Position = vec4(0.4 * pos.x + xMove, 0.4 * pos.y, 0.4 * pos.z, 1.0);			\n\
 }";
 
 //Fragment Shader
@@ -144,6 +159,9 @@ void CompileShaders() {
 		printf("Error validating program: %s \n", elog);
 		return;
 	}
+
+	uniformModel = glGetUniformLocation(shader, "xMove"); //gets the uniform variable of xMove and binds it to uniformXMove var
+
 }
 
 
@@ -212,12 +230,40 @@ int main() {
 		// Get + handle user input events
 		glfwPollEvents();
 
+		if (direction)
+		{
+			//if heading to the right
+			triOffeset += triIncrement;
+
+		}
+		else
+		{
+			//if heading to the left
+			triOffeset -= triIncrement;
+		}
+
+		if (abs(triOffeset) >= triMaxOffset) { 
+			//if the abs value of triangle offset is more or equal to the triangle max offset value, then switch direction
+			direction = !direction;
+		}
+
 		//Clear window
 		glClearColor(0.57f, 0.30f, 1.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
 
 		//Asks the GPU to run the shader program with the chosen id
 		glUseProgram(shader);
+
+		//Var type of a matrix4x4 (identity matrix, all values are zeros besides the diagonal one)
+		glm::mat4 model;
+		model = glm::translate(model, glm::vec3(triOffeset, 0.0f, 0.0f)); //translation to the identity matrix by a precise vector 3 
+
+		//assign value to the shader program
+		//glUniform1f - assign uniform value to a single float
+		glUniform1f(uniformModel , triOffeset); //set the uniform value to the offset triangle value
+
+		//the value pointer because we need a raw format of the value model that will work with the shader
+		glUniformMatrix4fv(uniformModel, 1, GL_FALSE, glm::value_ptr(model));
 
 		//Binding that shader program to the a specific VAO
 		glBindVertexArray(VAO);

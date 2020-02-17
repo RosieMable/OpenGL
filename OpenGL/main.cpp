@@ -11,6 +11,7 @@
 
 //Window Dimensions
 const GLint WIDTH = 800, HEIGHT = 600;
+const float toRadians = 3.14159265f / 180.0f; //equation to convert degrees to radians
 
 GLuint VAO, VBO, shader, uniformModel; //uniformModel will allow us to translate the model coordinates to the world coordinates
 
@@ -21,6 +22,8 @@ float triOffeset = 0.0f; //triangle will start at 0
 float triMaxOffset = 0.7f; 
 float triIncrement = 0.005f; //increment the position by this value
 
+float curAngle = 0.0f;
+
 
 // Vertex Shader
 static const char* vShader = "				\n\
@@ -28,11 +31,11 @@ static const char* vShader = "				\n\
 											\n\
 layout (location = 0) in vec3 pos;			\n\
 											\n\
-uniform float xMove;											\n\
+uniform mat4 model;											\n\
 											\n\
 void main()									\n\
 {											\n\
-	gl_Position = vec4(0.4 * pos.x + xMove, 0.4 * pos.y, 0.4 * pos.z, 1.0);			\n\
+	gl_Position = model * vec4(pos, 1.0);			\n\
 }";
 
 //Fragment Shader
@@ -160,7 +163,7 @@ void CompileShaders() {
 		return;
 	}
 
-	uniformModel = glGetUniformLocation(shader, "xMove"); //gets the uniform variable of xMove and binds it to uniformXMove var
+	uniformModel = glGetUniformLocation(shader, "model"); //gets the uniform variable of model and binds it to model var
 
 }
 
@@ -247,6 +250,12 @@ int main() {
 			direction = !direction;
 		}
 
+		curAngle += 0.1f;
+		if (curAngle >= 360)
+		{
+			curAngle -= 360;
+		}
+
 		//Clear window
 		glClearColor(0.57f, 0.30f, 1.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT);
@@ -255,13 +264,16 @@ int main() {
 		glUseProgram(shader);
 
 		//Var type of a matrix4x4 (identity matrix, all values are zeros besides the diagonal one)
-		glm::mat4 model;
-		model = glm::translate(model, glm::vec3(triOffeset, 0.0f, 0.0f)); //translation to the identity matrix by a precise vector 3 
+		glm::mat4 model(1.0f);
+
+
+
+		model = glm::translate(model, glm::vec3(triOffeset, triOffeset, 0.0f)); //translation to the identity matrix by a precise vector 3 
+		model = glm::rotate(model, curAngle * toRadians, glm::vec3(0.0f, 0.0f, 1.0f));
+		model = glm::scale(model, glm::vec3(.4f, .4f, 1.0f));
+		
 
 		//assign value to the shader program
-		//glUniform1f - assign uniform value to a single float
-		glUniform1f(uniformModel , triOffeset); //set the uniform value to the offset triangle value
-
 		//the value pointer because we need a raw format of the value model that will work with the shader
 		glUniformMatrix4fv(uniformModel, 1, GL_FALSE, glm::value_ptr(model));
 

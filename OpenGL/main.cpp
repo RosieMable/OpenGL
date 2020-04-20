@@ -13,7 +13,8 @@
 const GLint WIDTH = 800, HEIGHT = 600;
 const float toRadians = 3.14159265f / 180.0f; //equation to convert degrees to radians
 
-GLuint VAO, VBO, shader, uniformModel; //uniformModel will allow us to translate the model coordinates to the world coordinates
+GLuint VAO, VBO, IBO, shader, uniformModel, uniformProjection; //uniformModel will allow us to translate the model coordinates to the world coordinates
+//IBO = Index Buffer Object for indexed Draws
 
 //Control the movement of the triangle
 bool direction = true;
@@ -31,37 +32,61 @@ static const char* vShader = "				\n\
 											\n\
 layout (location = 0) in vec3 pos;			\n\
 											\n\
+out vec4 vCol; \n\
 uniform mat4 model;											\n\
+uniform mat4 projection;											\n\
 											\n\
 void main()									\n\
 {											\n\
-	gl_Position = model * vec4(pos, 1.0);			\n\
+	gl_Position = projection * model * vec4(pos, 1.0);			\n\
+	vCol = vec4(clamp(pos, 0.0f, 1.0f), 1.0f); \n\
 }";
 
 //Fragment Shader
 static const char* fShader = "				\n\
 #version 330								\n\
 											\n\
+in vec4 vCol;								\n\
 out vec4 colour;								\n\
 											\n\
 void main()									\n\
 {											\n\
-	colour = vec4(0.3, 0.0, 0.45, 1.0);			\n\
+	colour = vCol;			\n\
 }";
 
 void CreateTriangle()
 {
+	unsigned int indices[] = {
+		0, 3, 1, //side 
+		1, 3, 2, //side
+		2, 3, 0, //front side
+		0, 1, 2 //base
+	};
+
 	GLfloat vertices[] = {
 		-1.0f, -1.0f, 0.0f,
+		0.0f, -1.0f, 1.0f,
 		1.0f, -1.0f, 0.0f,
 		0.0f, 1.0f, 0.0f
 	};
 
-	//Creating the VAO and binding to the variable VAO (vertex array object)
+	//Creating the VAO  and binding to the variable VAO (vertex array object)
 	glGenVertexArrays(1, &VAO);
 	glBindVertexArray(VAO);
 
-	//Creating the VBO and binding it to the variable VBO (vertex buffer object)
+	//Creating the IBO buffer and binding it to the variable IBO (Index Buffer Object)
+	glGenBuffers(1, &IBO);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBO); //making array buffer for the indeces
+
+	//Passing the data we want to draw to the buffer
+	//1 param - which buffer we are using to draw it
+	//2 param - size of the data we are drawing
+	//3 param - the data we are drawing
+	//4 param - the drawing mode 
+	glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(indices), indices, GL_STATIC_DRAW);
+
+
+	//Creating the VBO buffer and binding it to the variable VBO (vertex buffer object)
 	glGenBuffers(1, &VBO);
 	glBindBuffer(GL_ARRAY_BUFFER, VBO);
 
@@ -75,9 +100,10 @@ void CreateTriangle()
 	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, 0);
 	glEnableVertexAttribArray(0);
 
-	//Unbinding the VAO and VBO
+	//Unbinding the VAO and VBO and IBO
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindVertexArray(0);
+	glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 }
 
 void AddShader(GLuint theProgram, const char* shaderCode, GLenum shaderType) 
@@ -164,6 +190,7 @@ void CompileShaders() {
 	}
 
 	uniformModel = glGetUniformLocation(shader, "model"); //gets the uniform variable of model and binds it to model var
+	uniformProjection = glGetUniformLocation(shader, "projection");
 
 }
 
@@ -220,12 +247,22 @@ int main() {
 		return 1;
 	}
 
+	//Setting up the depth testing for the depth buffer to determine which pixels to draw first 
+	glEnable(GL_DEPTH_TEST);
+
 	//Setup Viewport Size
 	glViewport(0, 0, bufferWidth, bufferHeight);
 
 	//Create the triangle and draw it
 	CreateTriangle();
 	CompileShaders();
+
+	//glm perspective tells that we want a perspective matrix
+	//param 1 - field of view in degrees onto y axis
+	//param 2 - aspect ratio, the width of the window/the height of the window
+	//param 3 - nearest field of view, what distance is the nearest thing that we can see at
+	//param 4 - the furthest field of view, what is the max distance our camera can perceive objects at
+	glm::mat4 projection = glm::perspective(45.0f, (GLfloat)bufferWidth / (GLfloat)bufferHeight, 0.1f, 100.0f);
 
 	//Loop until window closed
 	while (!glfwWindowShouldClose(mainWindow))
@@ -258,7 +295,8 @@ int main() {
 
 		//Clear window
 		glClearColor(0.57f, 0.30f, 1.0f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT);
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+		//Clearing both the colour and depth buffer bit
 
 		//Asks the GPU to run the shader program with the chosen id
 		glUseProgram(shader);
@@ -268,22 +306,27 @@ int main() {
 
 
 
-		model = glm::translate(model, glm::vec3(triOffeset, triOffeset, 0.0f)); //translation to the identity matrix by a precise vector 3 
-		model = glm::rotate(model, curAngle * toRadians, glm::vec3(0.0f, 0.0f, 1.0f));
+		model = glm::translate(model, glm::vec3(0.0f, triOffeset, -2.5f)); //translation to the identity matrix by a precise vector 3 
+		//model = glm::rotate(model, curAngle * toRadians, glm::vec3(0.0f, 1.0f, 0.0f));
 		model = glm::scale(model, glm::vec3(.4f, .4f, 1.0f));
 		
 
 		//assign value to the shader program
 		//the value pointer because we need a raw format of the value model that will work with the shader
 		glUniformMatrix4fv(uniformModel, 1, GL_FALSE, glm::value_ptr(model));
+		glUniformMatrix4fv(uniformProjection, 1, GL_FALSE, glm::value_ptr(projection));
+
 
 		//Binding that shader program to the a specific VAO
 		glBindVertexArray(VAO);
+		//binding the shader program to specific IBO
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, IBO);
 
-		glDrawArrays(GL_TRIANGLES, 0, 3);
+		glDrawElements(GL_TRIANGLES, 12, GL_UNSIGNED_INT, 0);
 
 		//Unbinding the VAO
 		glBindVertexArray(0);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
 
 		//Unassign the shader program
 		glUseProgram(0);

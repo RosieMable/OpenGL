@@ -14,7 +14,6 @@
 #include "Mesh.h"
 #include "Shader.h"
 
-
 const float toRadians = 3.14159265f / 180.0f; //equation to convert degrees to radians
 
 
